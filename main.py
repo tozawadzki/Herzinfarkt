@@ -93,7 +93,7 @@ def main():
         top_rank.append(rank[index])
 
     # Funcja do zapisywania pliku z rankinegim cech
-    
+
     # with open('./rank.csv', mode='w') as csv_file:
     #     writer = csv.writer(csv_file)
     #     for i, val in enumerate(indexes):
