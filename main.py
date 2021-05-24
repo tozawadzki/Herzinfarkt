@@ -32,48 +32,50 @@ def get_data(files):
     Y = data_matrix[:, -1]
     return X, Y
 
-def classification(X, Y, activation_value, momentum_value, top_rank, fvalue_selector, layer_size, best_score, list_score):
+def classification(X, Y, activation_value, momentum_value, top_rank, layer_size, results):
 
-    # Utworzenie walidacji krzyżowej, podział na 2 grupy, 5 powtórzeń
-    rkf = RepeatedStratifiedKFold(n_splits=2, n_repeats=5)
+    # Konfiguracja walidacji krzyzowej - Repeated Stratified K-Fold cross validator z biblioteki scikit-learn
+    rskf = RepeatedStratifiedKFold(n_splits=2, n_repeats=5)
 
-    # Utworzenie modelu o wcześniej zdefiniowanych parametrach
-    mlp = MLPClassifier(hidden_layer_sizes=layer_size,
+    # Konfiguracja modelu - Multi-layer Perceptron z biblioteki scikit-learn
+    mlpc = MLPClassifier(hidden_layer_sizes=layer_size,
                         activation=activation_value, max_iter=1000, momentum=momentum_value)
 
-    first_time = True
-    # Pętla dla 5 krotnej walidacji krzyżowej
-    for train, test in rkf.split(X, Y):
+    # Pętla dla walidacji krzyzowej
+    for fold, (train, test) in enumerate(rskf.split(X, Y)):
         x_train, x_test = X[train], X[test]
         y_train, y_test = Y[train], Y[test]
 
         # Dopasowanie x_train do y_train
-        mlp.fit(x_train, y_train)
+        mlpc.fit(x_train, y_train)
 
         # Przypisanie wyniku na podstawie nowych zbiorów
-        score = mlp.score(x_test, y_test)
+        score = mlpc.score(x_test, y_test)
 
-        # Przewidywanie za pomocą wcześniej utworzonego mlp przy użyciu zbioru x_test
-        predict = mlp.predict(x_test)
+        # predykcja z pomocą utworzonego klasyfikatora
+        # predict = mlpc.predict(x_test)
 
-        # Macierz pomyłek
-        confusion_matrix_value = confusion_matrix(y_test, predict)
+        # print(score)
 
-        print(score)
+        # Tworzenie nowego rekordu z danymi wykonanego badania
+        params = {"fold":fold,
+            "layer_size":layer_size,
+            "momentum_value":momentum_value,
+            "activation_value":activation_value,
+            "feature_number":len(top_rank)+1,
+            "score":score}
 
-        # Utworzenie nowego rekordu z danymi odnośnie wykonanego badania
-        if first_time:
-            temp_score = score
-            temp_confusion_matrix = confusion_matrix_value
-            first_time = False
-        else:
-            temp_score = temp_score + score
-            temp_confusion_matrix = temp_confusion_matrix + confusion_matrix_value
+        print(params)
 
-    current_score = [temp_score/10, activation_value, momentum_value,
-                     layer_size, len(top_rank), (temp_confusion_matrix/10).astype(int)]
-    list_score.append(current_score)
-    print(f"----\navg: {current_score[0]}\n-----")
+        results = results.append(params, ignore_index=True)
+
+    return results
+
+
+def get_k_best(x, y, k):
+    fvalue_selector = SelectKBest(f_classif, k=k)
+    fvalue_selector.fit(x, y)
+    return fvalue_selector.transform(x)
 
 def main():
     # 1. Wyznaczenie rankingu cech
@@ -87,7 +89,7 @@ def main():
     top_rank = []
     indexes = rank.argsort()[::-1]
 
-    print(len(indexes))
+    print(indexes)
 
     for index in indexes:
         top_rank.append(rank[index])
@@ -102,52 +104,32 @@ def main():
 
     # 2. Implementacja środowiska eksperymentowania
 
-    # Format zapisu wyniku - [wynik, typ funkcji aktywacji, wartość momentum, rozmiar warstwy, macierz pomyłek]
-    best_score = [0, '', 0, 0, 0, np.ndarray]
-    # Tablica przechowująca wyniki wszystkich badań w formacie takim samym jak zmienna "best_score"
-    list_score = []
-
-    # Zdefiniowane trzech liczb neuronów w warstwie ukrytej
-    layers = [100, 200, 300]
-
-    # Zdefiniowanie ile cech ma być użytych w badaniu
-    feature_numbers = len(indexes)
+    # Liczby neuronów w warstwie ukrytej
+    test_layers = [100, 200, 300]
 
     # Typy funkcji aktywacji
-    activation_values = ['relu', 'logistic']
+    activation_value = 'logistic' # or relu
 
-    # Wartości momentum (domyślna wartość wynosi 0)
-    momentum_values = [0, 0.9]
+    # Wartości momentum
+    momentum_values = [0, 0.9] #
 
-    # Całkowita liczba wszystkich badań
-    total_examinations = len(momentum_values) * len(activation_values) * len(layers) * feature_numbers
+    results = pandas.DataFrame(columns=["fold","layer_size","momentum_value", "activation_value", "feature_number","score"])
 
-    # Indeks aktualnego badania
-    current_examination = 1
+    filename = "resultaty2.csv"
 
-    # Badania przeprowadzane przy użyciu wszystkich możliwych wcześniej zdefiniowanych kombinacji paramterów
-    for layer in layers:
-        for activation_value in activation_values:
+    # Przeprowadzenie badan przy uzyciu roznych konfiguracji zdefiniowanych parametrow
+    for layer in test_layers:
             for momentum_value in momentum_values:
-                for feature_number in range(1, feature_numbers):
-                    to_train = indexes[:feature_number]
+                for feature_number in range(1,np.shape(X)[1]+1):
 
                     print("---------------------------------")
                     print(
-                        f"layers {layer}, activation value: {activation_value}, momentum_value {momentum_value}, feature_number: {feature_number}")
-                    print(f'{current_examination}/{total_examinations} - start')
+                        f"Ilość warstw {layer}, Funkcja aktywacji: {activation_value}, Momentum: {momentum_value}, Liczba cech: {feature_number}")
 
-                    classification(X=X[:, to_train], Y=Y, activation_value=activation_value,
-                                   momentum_value=momentum_value, top_rank=top_rank[
-                        :feature_number - 1],
-                        fvalue_selector=fvalue_selector,
-                        layer_size=layer, best_score=best_score, list_score=list_score)
-
-                    print(f'{current_examination}/{total_examinations} - end')
-                    current_examination += 1
-
-    dflist = pandas.DataFrame(list_score)
-    dflist.to_csv('wyniki.txt', encoding='utf-8', index=False)
+                    results = classification(X=get_k_best(X, Y, feature_number), Y=Y, activation_value=activation_value, momentum_value=momentum_value, 
+                                            top_rank=top_rank[:feature_number - 1], layer_size=layer, results=results)
+                                    
+    results.to_csv(filename)
         
 
 if __name__ == "__main__":
