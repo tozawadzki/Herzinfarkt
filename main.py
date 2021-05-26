@@ -108,14 +108,14 @@ def main():
     test_layers = [100, 200, 300]
 
     # Typy funkcji aktywacji
-    activation_value = 'logistic' # or relu
+    activation_value = 'relu' # or relu, logistic
 
     # Wartości momentum
     momentum_values = [0, 0.9] #
 
     results = pandas.DataFrame(columns=["fold","layer_size","momentum_value", "activation_value", "feature_number","score"])
 
-    filename = "resultaty2.csv"
+    filename = "resultaty_relu.csv"
 
     # Przeprowadzenie badan przy uzyciu roznych konfiguracji zdefiniowanych parametrow
     for layer in test_layers:
